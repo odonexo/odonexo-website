@@ -5,7 +5,7 @@ import { buildOrderPdf } from "@/lib/order-pdf";
 import { formatPriceFromEur } from "@/lib/currency";
 import { getInvoiceLabels, normalizeOrderLocale } from "@/lib/order-invoice-i18n";
 
-function resolveSmtp(settings: SiteSettings) {
+export function resolveSmtp(settings: SiteSettings) {
   return {
     host: process.env.SMTP_HOST?.trim() || settings.smtpHost?.trim() || "",
     port: Number(process.env.SMTP_PORT || settings.smtpPort || 587) || 587,

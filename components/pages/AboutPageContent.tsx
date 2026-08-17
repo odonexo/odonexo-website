@@ -3,9 +3,24 @@
 import Image from "next/image";
 import { Award, Users, Globe, Heart } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { useSiteSettings } from "@/lib/site-settings-context";
+import { pickLocalized } from "@/lib/localized-content";
 
 export default function AboutPageContent() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const settings = useSiteSettings();
+
+  const aboutBody = pickLocalized(
+    locale,
+    settings.aboutContentSq,
+    settings.aboutContentEn,
+    settings.aboutContent
+  );
+
+  const paragraphs = aboutBody
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   const values = [
     { icon: Award, title: t.about.quality, description: t.about.qualityDesc },
@@ -33,10 +48,16 @@ export default function AboutPageContent() {
             <div>
               <h2 className="section-title">{t.about.whoTitle}</h2>
               <div className="mt-6 space-y-4 text-neutral leading-relaxed">
-                <p>{t.about.whoP1}</p>
-                <p>{t.about.whoP2}</p>
-                <p>{t.about.whoP3}</p>
-                <p>{t.about.whoP4}</p>
+                {paragraphs.length > 0 ? (
+                  paragraphs.map((p, i) => <p key={i}>{p}</p>)
+                ) : (
+                  <>
+                    <p>{t.about.whoP1}</p>
+                    <p>{t.about.whoP2}</p>
+                    <p>{t.about.whoP3}</p>
+                    <p>{t.about.whoP4}</p>
+                  </>
+                )}
               </div>
             </div>
 

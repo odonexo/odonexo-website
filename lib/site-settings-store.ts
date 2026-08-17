@@ -71,6 +71,44 @@ function normalizeSettings(raw: LegacySiteSettings): SiteSettings {
     instagram: String(raw.instagram ?? "").trim(),
     linkedin: String(raw.linkedin ?? "").trim(),
     tiktok: String(raw.tiktok ?? "").trim(),
+    aboutContentSq:
+      String(raw.aboutContentSq ?? "").trim() ||
+      defaultSiteSettings.aboutContentSq,
+    aboutContentEn:
+      String(raw.aboutContentEn ?? "").trim() ||
+      defaultSiteSettings.aboutContentEn,
+    aboutContent:
+      String(raw.aboutContent ?? "").trim() || defaultSiteSettings.aboutContent,
+    shippingPolicySq:
+      String(raw.shippingPolicySq ?? "").trim() ||
+      String(raw.shippingPolicy ?? "").trim() ||
+      defaultSiteSettings.shippingPolicySq,
+    shippingPolicyEn:
+      String(raw.shippingPolicyEn ?? "").trim() ||
+      defaultSiteSettings.shippingPolicyEn,
+    shippingPolicy:
+      String(raw.shippingPolicy ?? "").trim() ||
+      defaultSiteSettings.shippingPolicy,
+    returnsPolicySq:
+      String(raw.returnsPolicySq ?? "").trim() ||
+      String(raw.returnsPolicy ?? "").trim() ||
+      defaultSiteSettings.returnsPolicySq,
+    returnsPolicyEn:
+      String(raw.returnsPolicyEn ?? "").trim() ||
+      defaultSiteSettings.returnsPolicyEn,
+    returnsPolicy:
+      String(raw.returnsPolicy ?? "").trim() ||
+      defaultSiteSettings.returnsPolicy,
+    privacyPolicySq:
+      String(raw.privacyPolicySq ?? "").trim() ||
+      String(raw.privacyPolicy ?? "").trim() ||
+      defaultSiteSettings.privacyPolicySq,
+    privacyPolicyEn:
+      String(raw.privacyPolicyEn ?? "").trim() ||
+      defaultSiteSettings.privacyPolicyEn,
+    privacyPolicy:
+      String(raw.privacyPolicy ?? "").trim() ||
+      defaultSiteSettings.privacyPolicy,
     freeShippingMinEur:
       raw.freeShippingMinEur && Number(raw.freeShippingMinEur) > 0
         ? Number(raw.freeShippingMinEur)
@@ -186,6 +224,18 @@ export async function updateSiteSettings(
     instagram: String(input.instagram ?? "").trim(),
     linkedin: String(input.linkedin ?? "").trim(),
     tiktok: String(input.tiktok ?? "").trim(),
+    aboutContentSq: String(input.aboutContentSq ?? "").trim(),
+    aboutContentEn: String(input.aboutContentEn ?? "").trim(),
+    aboutContent: String(input.aboutContent ?? "").trim(),
+    shippingPolicySq: String(input.shippingPolicySq ?? "").trim(),
+    shippingPolicyEn: String(input.shippingPolicyEn ?? "").trim(),
+    shippingPolicy: String(input.shippingPolicy ?? "").trim(),
+    returnsPolicySq: String(input.returnsPolicySq ?? "").trim(),
+    returnsPolicyEn: String(input.returnsPolicyEn ?? "").trim(),
+    returnsPolicy: String(input.returnsPolicy ?? "").trim(),
+    privacyPolicySq: String(input.privacyPolicySq ?? "").trim(),
+    privacyPolicyEn: String(input.privacyPolicyEn ?? "").trim(),
+    privacyPolicy: String(input.privacyPolicy ?? "").trim(),
     updatedAt: new Date().toISOString(),
   };
 

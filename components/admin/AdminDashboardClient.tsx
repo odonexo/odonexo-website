@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Package, Eye, AlertTriangle, Tag, ShoppingBag } from "lucide-react";
+import { Package, Eye, AlertTriangle, Tag, ShoppingBag, Mail } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 
 type Stats = {
   newOrders: number;
   totalOrders: number;
+  unreadMessages: number;
   totalProducts: number;
   published: number;
   outOfStock: number;
@@ -31,6 +32,13 @@ export default function AdminDashboardClient({ stats }: { stats: Stats }) {
       icon: ShoppingBag,
       color: "bg-indigo-50 text-indigo-600",
       href: "/admin/orders",
+    },
+    {
+      label: t.admin.statUnreadMessages,
+      value: stats.unreadMessages,
+      icon: Mail,
+      color: "bg-sky-50 text-sky-600",
+      href: "/admin/messages",
     },
     {
       label: t.admin.statTotalProducts,
@@ -95,6 +103,15 @@ export default function AdminDashboardClient({ stats }: { stats: Stats }) {
             {t.admin.incomingOrders}
             {stats.newOrders > 0
               ? ` (${stats.newOrders} ${t.admin.newCount})`
+              : ""}
+          </Link>
+          <Link
+            href="/admin/messages"
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {t.admin.incomingMessages}
+            {stats.unreadMessages > 0
+              ? ` (${stats.unreadMessages} ${t.admin.newCount})`
               : ""}
           </Link>
           <Link

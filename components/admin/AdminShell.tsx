@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Plus,
   ShoppingBag,
+  Mail,
 } from "lucide-react";
 import OrderNotifications from "@/components/admin/OrderNotifications";
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
@@ -24,6 +25,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const nav = [
     { href: "/admin", label: t.admin.navPanel, icon: LayoutDashboard },
     { href: "/admin/orders", label: t.admin.navOrders, icon: ShoppingBag },
+    { href: "/admin/messages", label: t.admin.navMessages, icon: Mail },
     { href: "/admin/products", label: t.admin.navProducts, icon: Package },
     { href: "/admin/categories", label: t.admin.navCategories, icon: FolderOpen },
     { href: "/admin/settings", label: t.admin.navSettings, icon: Phone },
@@ -102,7 +104,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">{t.admin.newCategory}</span>
                 </Link>
-              ) : pathname.startsWith("/admin/orders") ? null : (
+              ) : pathname.startsWith("/admin/orders") ||
+                pathname.startsWith("/admin/messages") ? null : (
                 <Link
                   href="/admin/products/new"
                   className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark"

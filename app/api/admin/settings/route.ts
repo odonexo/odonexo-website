@@ -30,6 +30,18 @@ export async function PUT(request: Request) {
     instagram: body.instagram ?? "",
     linkedin: body.linkedin ?? "",
     tiktok: body.tiktok ?? "",
+    aboutContentSq: body.aboutContentSq ?? "",
+    aboutContentEn: body.aboutContentEn ?? "",
+    aboutContent: body.aboutContent ?? "",
+    shippingPolicySq: body.shippingPolicySq ?? "",
+    shippingPolicyEn: body.shippingPolicyEn ?? "",
+    shippingPolicy: body.shippingPolicy ?? "",
+    returnsPolicySq: body.returnsPolicySq ?? "",
+    returnsPolicyEn: body.returnsPolicyEn ?? "",
+    returnsPolicy: body.returnsPolicy ?? "",
+    privacyPolicySq: body.privacyPolicySq ?? "",
+    privacyPolicyEn: body.privacyPolicyEn ?? "",
+    privacyPolicy: body.privacyPolicy ?? "",
     freeShippingMinEur: Number(body.freeShippingMinEur) || 50,
     shippingCostEur: Number(body.shippingCostEur) || 5,
     onlinePaymentEnabled: Boolean(body.onlinePaymentEnabled),
@@ -68,6 +80,10 @@ export async function PUT(request: Request) {
 
   revalidatePath("/", "layout");
   revalidatePath("/admin/settings");
+  revalidatePath("/about");
+  revalidatePath("/shipping");
+  revalidatePath("/returns");
+  revalidatePath("/privacy");
 
   return NextResponse.json(updated);
 }

@@ -46,6 +46,8 @@ export default function OrderList() {
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [selectedYear, setSelectedYear] = useState<string>("all");
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [query, setQuery] = useState("");
 
   const statusLabel: Record<OrderStatus, string> = {
@@ -150,6 +152,20 @@ export default function OrderList() {
       if (dateFilter === "week" && created < daysAgo(7)) return false;
       if (dateFilter === "month" && created < daysAgo(30)) return false;
 
+      const orderDate = new Date(order.createdAt);
+      if (
+        selectedYear !== "all" &&
+        orderDate.getFullYear() !== Number(selectedYear)
+      ) {
+        return false;
+      }
+      if (
+        selectedMonth !== "all" &&
+        orderDate.getMonth() !== Number(selectedMonth)
+      ) {
+        return false;
+      }
+
       if (!q) return true;
 
       const haystack = [
@@ -168,7 +184,22 @@ export default function OrderList() {
 
       return haystack.includes(q);
     });
-  }, [orders, statusFilter, dateFilter, query]);
+  }, [orders, statusFilter, dateFilter, selectedYear, selectedMonth, query]);
+
+  const availableYears = useMemo(() => {
+    const years = new Set(
+      orders
+        .map((order) => new Date(order.createdAt).getFullYear())
+        .filter(Number.isFinite)
+    );
+    years.add(new Date().getFullYear());
+    return Array.from(years).sort((a, b) => b - a);
+  }, [orders]);
+
+  const monthFormatter = useMemo(
+    () => new Intl.DateTimeFormat(dateLocale, { month: "long" }),
+    [dateLocale]
+  );
 
   const statusCounts = useMemo(() => {
     return {
@@ -259,6 +290,35 @@ export default function OrderList() {
         ))}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
+        <select
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(e.target.value)}
+          aria-label={t.admin.orderSelectYear}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+        >
+          <option value="all">{t.admin.orderAllYears}</option>
+          {availableYears.map((year) => (
+            <option key={year} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          aria-label={t.admin.orderSelectMonth}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+        >
+          <option value="all">{t.admin.orderAllMonths}</option>
+          {Array.from({ length: 12 }, (_, month) => (
+            <option key={month} value={month}>
+              {monthFormatter.format(new Date(2020, month, 1))}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {error && (
         <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
@@ -276,13 +336,19 @@ export default function OrderList() {
           <p className="mt-3 text-sm text-slate-500">
             {orders.length === 0 ? t.admin.orderEmpty : t.admin.orderNoMatch}
           </p>
-          {(query || statusFilter !== "all" || dateFilter !== "all") && (
+          {(query ||
+            statusFilter !== "all" ||
+            dateFilter !== "all" ||
+            selectedYear !== "all" ||
+            selectedMonth !== "all") && (
             <button
               type="button"
               onClick={() => {
                 setQuery("");
                 setStatusFilter("all");
                 setDateFilter("all");
+                setSelectedYear("all");
+                setSelectedMonth("all");
               }}
               className="mt-3 text-sm font-medium text-brand hover:underline"
             >

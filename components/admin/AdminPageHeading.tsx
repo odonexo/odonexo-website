@@ -11,6 +11,7 @@ export function AdminPageHeading({
     | "productsTitle"
     | "categoriesTitle"
     | "ordersTitle"
+    | "messagesTitle"
     | "settingsTitle";
   count?: number;
   subtitleKey?: "productsSubtitle" | "categoriesSubtitle";

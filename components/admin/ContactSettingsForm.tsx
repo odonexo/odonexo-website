@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, ArrowLeft } from "lucide-react";
+import { Save, ArrowLeft, Languages, Send } from "lucide-react";
 import type { SiteSettings } from "@/lib/types/site-settings";
 import { toPublicSiteSettings } from "@/lib/types/site-settings";
 import { useUpdateSiteSettings } from "@/lib/site-settings-context";
 import { useLanguage } from "@/lib/i18n/language-context";
-import { Send } from "lucide-react";
+import { translateText } from "@/lib/translate";
 
 interface ContactSettingsFormProps {
   settings: SiteSettings;
@@ -37,6 +37,18 @@ export default function ContactSettingsForm({
     instagram: settings.instagram ?? "",
     linkedin: settings.linkedin ?? "",
     tiktok: settings.tiktok ?? "",
+    aboutContentSq: settings.aboutContentSq ?? "",
+    aboutContentEn: settings.aboutContentEn ?? "",
+    aboutContent: settings.aboutContent ?? "",
+    shippingPolicySq: settings.shippingPolicySq ?? "",
+    shippingPolicyEn: settings.shippingPolicyEn ?? "",
+    shippingPolicy: settings.shippingPolicy ?? "",
+    returnsPolicySq: settings.returnsPolicySq ?? "",
+    returnsPolicyEn: settings.returnsPolicyEn ?? "",
+    returnsPolicy: settings.returnsPolicy ?? "",
+    privacyPolicySq: settings.privacyPolicySq ?? "",
+    privacyPolicyEn: settings.privacyPolicyEn ?? "",
+    privacyPolicy: settings.privacyPolicy ?? "",
     freeShippingMinEur: settings.freeShippingMinEur ?? 50,
     shippingCostEur: settings.shippingCostEur ?? 5,
     onlinePaymentEnabled: settings.onlinePaymentEnabled ?? false,
@@ -59,10 +71,72 @@ export default function ContactSettingsForm({
   const hasBotToken = Boolean(settings.telegramBotToken);
   const hasSmtpPass = Boolean(settings.smtpPass);
   const hasPosApiKey = Boolean(settings.posApiKey);
+  const [translatingKey, setTranslatingKey] = useState<string | null>(null);
 
   const update = (key: string, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setSuccess(false);
+  };
+
+  const fillEnTrFromSq = async (
+    sqKey: string,
+    enKey: string,
+    trKey: string,
+    force = false
+  ) => {
+    const sq = String(form[sqKey as keyof typeof form] ?? "").trim();
+    if (!sq) return;
+
+    setTranslatingKey(sqKey);
+    try {
+      const next: Partial<typeof form> = {};
+      const enEmpty = !String(form[enKey as keyof typeof form] ?? "").trim();
+      const trEmpty = !String(form[trKey as keyof typeof form] ?? "").trim();
+      if (force || enEmpty) {
+        next[enKey as keyof typeof form] = (await translateText(
+          sq,
+          "sq",
+          "en"
+        )) as never;
+      }
+      if (force || trEmpty) {
+        next[trKey as keyof typeof form] = (await translateText(
+          sq,
+          "sq",
+          "tr"
+        )) as never;
+      }
+      if (Object.keys(next).length) {
+        setForm((prev) => ({ ...prev, ...next }));
+        setSuccess(false);
+      }
+    } finally {
+      setTranslatingKey(null);
+    }
+  };
+
+  const ensureTranslations = async (payload: typeof form) => {
+    const pairs: [string, string, string][] = [
+      ["aboutContentSq", "aboutContentEn", "aboutContent"],
+      ["shippingPolicySq", "shippingPolicyEn", "shippingPolicy"],
+      ["returnsPolicySq", "returnsPolicyEn", "returnsPolicy"],
+      ["privacyPolicySq", "privacyPolicyEn", "privacyPolicy"],
+    ];
+
+    const next = { ...payload };
+    for (const [sqKey, enKey, trKey] of pairs) {
+      const sq = String(next[sqKey as keyof typeof next] ?? "").trim();
+      if (!sq) continue;
+      if (!String(next[enKey as keyof typeof next] ?? "").trim()) {
+        (next as Record<string, string | boolean | number>)[enKey] =
+          await translateText(sq, "sq", "en");
+      }
+      if (!String(next[trKey as keyof typeof next] ?? "").trim()) {
+        (next as Record<string, string | boolean | number>)[trKey] =
+          await translateText(sq, "sq", "tr");
+      }
+    }
+    return next;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,34 +145,41 @@ export default function ContactSettingsForm({
     setError("");
     setSuccess(false);
 
-    const res = await fetch("/api/admin/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    try {
+      const payload = await ensureTranslations(form);
+      setForm(payload);
 
-    if (res.ok) {
-      const updated = (await res.json()) as SiteSettings;
-      updateSiteSettings(toPublicSiteSettings(updated));
-      setSuccess(true);
-      // Footer/context için public ayarları doğrula
-      try {
-        const publicRes = await fetch("/api/site-settings", {
-          cache: "no-store",
-        });
-        if (publicRes.ok) {
-          const pub = await publicRes.json();
-          updateSiteSettings(pub);
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const updated = (await res.json()) as SiteSettings;
+        updateSiteSettings(toPublicSiteSettings(updated));
+        setSuccess(true);
+        try {
+          const publicRes = await fetch("/api/site-settings", {
+            cache: "no-store",
+          });
+          if (publicRes.ok) {
+            const pub = await publicRes.json();
+            updateSiteSettings(pub);
+          }
+        } catch {
+          /* client update yeterli */
         }
-      } catch {
-        /* client update yeterli */
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || t.admin.saveFailed);
       }
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || t.admin.saveFailed);
+    } catch {
+      setError(t.admin.saveFailed);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleTestTelegram = async () => {
@@ -544,9 +625,162 @@ export default function ContactSettingsForm({
         </div>
       </div>
 
+      <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-slate-800">{t.admin.aboutSection}</h2>
+            <p className="mt-1 text-sm text-slate-500">{t.admin.aboutSectionHint}</p>
+          </div>
+          <button
+            type="button"
+            disabled={
+              translatingKey === "aboutContentSq" ||
+              !form.aboutContentSq.trim()
+            }
+            onClick={() =>
+              void fillEnTrFromSq(
+                "aboutContentSq",
+                "aboutContentEn",
+                "aboutContent",
+                true
+              )
+            }
+            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-40"
+          >
+            <Languages className="h-3.5 w-3.5" />
+            {translatingKey === "aboutContentSq"
+              ? t.admin.translating
+              : t.admin.suggestEnTr}
+          </button>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            {t.admin.aboutContentSqLabel}
+          </label>
+          <textarea
+            rows={8}
+            value={form.aboutContentSq}
+            onChange={(e) => update("aboutContentSq", e.target.value)}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            {t.admin.aboutContentEnLabel}
+          </label>
+          <textarea
+            rows={6}
+            value={form.aboutContentEn}
+            onChange={(e) => update("aboutContentEn", e.target.value)}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            {t.admin.aboutContentTrLabel}
+          </label>
+          <textarea
+            rows={6}
+            value={form.aboutContent}
+            onChange={(e) => update("aboutContent", e.target.value)}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
+          />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-8">
+        <div>
+          <h2 className="font-semibold text-slate-800">{t.admin.footerPoliciesSection}</h2>
+          <p className="mt-1 text-sm text-slate-500">{t.admin.footerPoliciesHint}</p>
+        </div>
+
+        {(
+          [
+            {
+              title: t.admin.shippingPolicyLabel,
+              sq: "shippingPolicySq",
+              en: "shippingPolicyEn",
+              tr: "shippingPolicy",
+            },
+            {
+              title: t.admin.returnsPolicyLabel,
+              sq: "returnsPolicySq",
+              en: "returnsPolicyEn",
+              tr: "returnsPolicy",
+            },
+            {
+              title: t.admin.privacyPolicyLabel,
+              sq: "privacyPolicySq",
+              en: "privacyPolicyEn",
+              tr: "privacyPolicy",
+            },
+          ] as const
+        ).map((block) => (
+          <div
+            key={block.sq}
+            className="space-y-4 border-t border-slate-100 pt-6 first:border-t-0 first:pt-0"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-slate-800">
+                {block.title}
+              </h3>
+              <button
+                type="button"
+                disabled={
+                  translatingKey === block.sq ||
+                  !String(form[block.sq] ?? "").trim()
+                }
+                onClick={() =>
+                  void fillEnTrFromSq(block.sq, block.en, block.tr, true)
+                }
+                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-40"
+              >
+                <Languages className="h-3.5 w-3.5" />
+                {translatingKey === block.sq
+                  ? t.admin.translating
+                  : t.admin.suggestEnTr}
+              </button>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t.admin.policySqLabel}
+              </label>
+              <textarea
+                rows={4}
+                value={form[block.sq]}
+                onChange={(e) => update(block.sq, e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t.admin.policyEnLabel}
+              </label>
+              <textarea
+                rows={3}
+                value={form[block.en]}
+                onChange={(e) => update(block.en, e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t.admin.policyTrLabel}
+              </label>
+              <textarea
+                rows={3}
+                value={form[block.tr]}
+                onChange={(e) => update(block.tr, e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
       <button
         type="submit"
-        disabled={saving}
+        disabled={saving || Boolean(translatingKey)}
         className="inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-3 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
       >
         <Save className="h-4 w-4" />

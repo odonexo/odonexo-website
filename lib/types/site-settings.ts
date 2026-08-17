@@ -12,6 +12,20 @@ export interface SiteSettings {
   instagram: string;
   linkedin: string;
   tiktok: string;
+  /** Hakkımızda — Arnavutça kaynak */
+  aboutContentSq: string;
+  aboutContentEn: string;
+  aboutContent: string;
+  /** Politikalar — Sq kaynak, En, Tr */
+  shippingPolicySq: string;
+  shippingPolicyEn: string;
+  shippingPolicy: string;
+  returnsPolicySq: string;
+  returnsPolicyEn: string;
+  returnsPolicy: string;
+  privacyPolicySq: string;
+  privacyPolicyEn: string;
+  privacyPolicy: string;
   freeShippingMinEur: number;
   shippingCostEur: number;
   /** POS seçeneğini checkout’ta müşteriye göster. */

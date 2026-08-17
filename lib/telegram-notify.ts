@@ -1,4 +1,5 @@
 import type { Order } from "@/lib/types/order";
+import type { ContactMessage } from "@/lib/types/contact-message";
 import type { SiteSettings } from "@/lib/types/site-settings";
 import { buildOrderPdf } from "@/lib/order-pdf";
 import { getInvoiceLabels, normalizeOrderLocale } from "@/lib/order-invoice-i18n";
@@ -167,5 +168,39 @@ export async function sendTelegramTestMessage(
           ? err.message
           : "Telegram bağlantı hatası";
     return { ok: false, error: message };
+  }
+}
+
+function formatContactText(message: ContactMessage): string {
+  return [
+    "📩 Yeni iletişim mesajı",
+    `👤 ${message.name}`,
+    `✉️ ${message.email}`,
+    message.phone ? `📞 ${message.phone}` : "",
+    `📌 ${message.subject}`,
+    `🌐 ${message.locale.toUpperCase()}`,
+    "",
+    message.message,
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+export async function sendTelegramContactNotification(
+  message: ContactMessage,
+  settings: SiteSettings
+): Promise<boolean> {
+  const { token, chatId } = resolveTelegramCredentials(settings);
+  if (!token || !chatId) return false;
+
+  try {
+    const result = await sendTelegramText(
+      token,
+      chatId,
+      formatContactText(message)
+    );
+    return result.ok;
+  } catch {
+    return false;
   }
 }

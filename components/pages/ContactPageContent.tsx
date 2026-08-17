@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail, Phone, MapPin, Clock, Send, MessageCircle } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useSiteSettings } from "@/lib/site-settings-context";
@@ -14,13 +14,61 @@ import {
 } from "@/lib/contact-links";
 
 export default function ContactPageContent() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const settings = useSiteSettings();
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    subject: t.contact.subjects.general,
+    message: "",
+  });
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const update = (key: keyof typeof form, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setError("");
+  };
+
+  useEffect(() => {
+    setForm((prev) => ({ ...prev, subject: t.contact.subjects.general }));
+  }, [t.contact.subjects.general]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSending(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          subject: form.subject,
+          message: form.message,
+          locale,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(
+          typeof data.error === "string" ? data.error : t.contact.sendError
+        );
+        return;
+      }
+
+      setSubmitted(true);
+    } catch {
+      setError(t.contact.sendNetwork);
+    } finally {
+      setSending(false);
+    }
   };
 
   const contactItems = [
@@ -93,9 +141,7 @@ export default function ContactPageContent() {
                     {href ? (
                       <a
                         href={href}
-                        target={
-                          href.startsWith("http") ? "_blank" : undefined
-                        }
+                        target={href.startsWith("http") ? "_blank" : undefined}
                         rel={
                           href.startsWith("http")
                             ? "noopener noreferrer"
@@ -140,6 +186,9 @@ export default function ContactPageContent() {
                         <input
                           type="text"
                           required
+                          maxLength={120}
+                          value={form.name}
+                          onChange={(e) => update("name", e.target.value)}
                           className="w-full rounded-lg border border-neutral-border bg-surface px-4 py-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                         />
                       </div>
@@ -150,6 +199,22 @@ export default function ContactPageContent() {
                         <input
                           type="email"
                           required
+                          maxLength={200}
+                          value={form.email}
+                          onChange={(e) => update("email", e.target.value)}
+                          className="w-full rounded-lg border border-neutral-border bg-surface px-4 py-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                          {t.contact.phone}
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          maxLength={40}
+                          value={form.phone}
+                          onChange={(e) => update("phone", e.target.value)}
                           className="w-full rounded-lg border border-neutral-border bg-surface px-4 py-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                         />
                       </div>
@@ -158,7 +223,11 @@ export default function ContactPageContent() {
                       <label className="block text-sm font-medium text-slate-700 mb-1.5">
                         {t.contact.subject}
                       </label>
-                      <select className="w-full rounded-lg border border-neutral-border bg-surface px-4 py-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                      <select
+                        value={form.subject}
+                        onChange={(e) => update("subject", e.target.value)}
+                        className="w-full rounded-lg border border-neutral-border bg-surface px-4 py-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                      >
                         <option>{t.contact.subjects.general}</option>
                         <option>{t.contact.subjects.product}</option>
                         <option>{t.contact.subjects.corporate}</option>
@@ -173,11 +242,21 @@ export default function ContactPageContent() {
                       <textarea
                         required
                         rows={5}
+                        maxLength={4000}
+                        value={form.message}
+                        onChange={(e) => update("message", e.target.value)}
                         className="w-full rounded-lg border border-neutral-border bg-surface px-4 py-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
                       />
                     </div>
-                    <button type="submit" className="btn-primary">
-                      {t.contact.send}
+                    {error ? (
+                      <p className="text-sm text-red-600">{error}</p>
+                    ) : null}
+                    <button
+                      type="submit"
+                      disabled={sending}
+                      className="btn-primary disabled:opacity-60"
+                    >
+                      {sending ? t.contact.sending : t.contact.send}
                       <Send className="h-4 w-4" />
                     </button>
                   </form>

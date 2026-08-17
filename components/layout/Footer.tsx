@@ -34,9 +34,9 @@ export default function Footer() {
   const corporateLinks = [
     { href: "/about", label: t.nav.about },
     { href: "/contact", label: t.nav.contact },
-    { href: "#", label: t.footer.shipping },
-    { href: "#", label: t.footer.returns },
-    { href: "#", label: t.footer.privacy },
+    { href: "/shipping", label: t.footer.shipping },
+    { href: "/returns", label: t.footer.returns },
+    { href: "/privacy", label: t.footer.privacy },
   ];
 
   const socialLinks = [
