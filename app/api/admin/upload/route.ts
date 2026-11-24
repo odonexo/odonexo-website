@@ -1,24 +1,57 @@
 import { NextResponse } from "next/server";
+import { put } from "@vercel/blob";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
+
+export const runtime = "nodejs";
+
+const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const ALLOWED_EXT = ["jpg", "jpeg", "png", "webp", "gif"];
+
+function blobToken(): string | undefined {
+  return process.env.BLOB_READ_WRITE_TOKEN?.trim() || undefined;
+}
+
+function contentTypeFor(ext: string, fileType: string): string {
+  if (fileType && ALLOWED_TYPES.includes(fileType)) return fileType;
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  if (ext === "gif") return "image/gif";
+  return "image/jpeg";
+}
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "Dosya okunamadı. Boyut çok büyük olabilir (max 8 MB)." },
+      { status: 400 }
+    );
+  }
 
+  const file = formData.get("file") as File | null;
   if (!file) {
     return NextResponse.json({ error: "Dosya bulunamadı" }, { status: 400 });
   }
 
-  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json(
+      { error: "Dosya çok büyük. En fazla 8 MB yükleyin." },
+      { status: 400 }
+    );
+  }
+
   const ext = (file.name.split(".").pop() || "").toLowerCase();
-  const extOk = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext);
-  const typeOk = !file.type || allowed.includes(file.type);
+  const extOk = ALLOWED_EXT.includes(ext);
+  const typeOk = !file.type || ALLOWED_TYPES.includes(file.type);
 
   if (!typeOk && !extOk) {
     return NextResponse.json(
@@ -27,16 +60,54 @@ export async function POST(request: Request) {
     );
   }
 
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+  const safeExt = extOk ? ext : "jpg";
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`;
+  const contentType = contentTypeFor(safeExt, file.type);
+  const bytes = Buffer.from(await file.arrayBuffer());
 
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${
-    extOk ? ext : "jpg"
-  }`;
-  const uploadDir = path.join(process.cwd(), "public", "products", "uploads");
+  const token = blobToken();
+  if (token) {
+    try {
+      const blob = await put(`odonexo/products/${filename}`, bytes, {
+        access: "public",
+        contentType,
+        token,
+        addRandomSuffix: false,
+      });
+      return NextResponse.json({ url: blob.url });
+    } catch (err) {
+      console.error("Blob görsel yükleme hatası:", err);
+      return NextResponse.json(
+        {
+          error:
+            "Görsel Blob'a yüklenemedi. Vercel BLOB_READ_WRITE_TOKEN ayarını kontrol edin.",
+        },
+        { status: 500 }
+      );
+    }
+  }
 
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(path.join(uploadDir, filename), buffer);
+  // Yerel geliştirme: Blob yoksa public/ altına yaz
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return NextResponse.json(
+      {
+        error:
+          "Canlı sitede görsel yüklemek için BLOB_READ_WRITE_TOKEN gerekli.",
+      },
+      { status: 500 }
+    );
+  }
 
-  return NextResponse.json({ url: `/products/uploads/${filename}` });
+  try {
+    const uploadDir = path.join(process.cwd(), "public", "products", "uploads");
+    await mkdir(uploadDir, { recursive: true });
+    await writeFile(path.join(uploadDir, filename), bytes);
+    return NextResponse.json({ url: `/products/uploads/${filename}` });
+  } catch (err) {
+    console.error("Yerel görsel yükleme hatası:", err);
+    return NextResponse.json(
+      { error: "Görsel yüklenemedi" },
+      { status: 500 }
+    );
+  }
 }
