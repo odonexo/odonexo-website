@@ -22,6 +22,18 @@ function contentTypeFor(ext: string, fileType: string): string {
   return "image/jpeg";
 }
 
+function mediaProxyUrl(pathname: string): string {
+  return `/api/media/${pathname
+    .split("/")
+    .map((p) => encodeURIComponent(p))
+    .join("/")}`;
+}
+
+function blobErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message.trim()) return err.message.trim();
+  return "Bilinmeyen Blob hatası";
+}
+
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
@@ -62,37 +74,43 @@ export async function POST(request: Request) {
 
   const safeExt = extOk ? ext : "jpg";
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`;
+  const pathname = `odonexo/products/${filename}`;
   const contentType = contentTypeFor(safeExt, file.type);
   const bytes = Buffer.from(await file.arrayBuffer());
 
   const token = blobToken();
-  if (token) {
-    try {
-      const blob = await put(`odonexo/products/${filename}`, bytes, {
-        access: "public",
-        contentType,
-        token,
-        addRandomSuffix: false,
-      });
-      return NextResponse.json({ url: blob.url });
-    } catch (err) {
-      console.error("Blob görsel yükleme hatası:", err);
-      return NextResponse.json(
-        {
-          error:
-            "Görsel Blob'a yüklenemedi. Vercel BLOB_READ_WRITE_TOKEN ayarını kontrol edin.",
-        },
-        { status: 500 }
-      );
-    }
-  }
+  const onVercel = Boolean(
+    process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+  );
 
-  // Yerel geliştirme: Blob yoksa public/ altına yaz
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  if (token || onVercel) {
+    const attempts: Array<"private" | "public"> = ["private", "public"];
+    const errors: string[] = [];
+
+    for (const access of attempts) {
+      try {
+        const blob = await put(pathname, bytes, {
+          access,
+          contentType,
+          addRandomSuffix: false,
+          ...(token ? { token } : {}),
+        });
+
+        // Private store → site üzerinden proxy; public store → doğrudan URL
+        const url =
+          access === "private" ? mediaProxyUrl(blob.pathname || pathname) : blob.url;
+
+        return NextResponse.json({ url, access, pathname: blob.pathname });
+      } catch (err) {
+        const msg = blobErrorMessage(err);
+        console.error(`Blob görsel yükleme hatası (${access}):`, msg);
+        errors.push(`${access}: ${msg}`);
+      }
+    }
+
     return NextResponse.json(
       {
-        error:
-          "Canlı sitede görsel yüklemek için BLOB_READ_WRITE_TOKEN gerekli.",
+        error: `Görsel Blob'a yüklenemedi. ${errors.join(" | ")}`,
       },
       { status: 500 }
     );
