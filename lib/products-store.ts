@@ -129,7 +129,13 @@ export async function readAllProducts(): Promise<Product[]> {
 
 export async function readPublishedProducts(): Promise<Product[]> {
   const products = await readAllProductsRaw();
-  return products.filter((p) => p.published);
+  return products
+    .filter((p) => p.published)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt || b.updatedAt || 0).getTime() -
+        new Date(a.createdAt || a.updatedAt || 0).getTime()
+    );
 }
 
 export async function getProductById(id: string): Promise<Product | undefined> {

@@ -26,12 +26,25 @@ export async function getProductsByCategory(categorySlug: string): Promise<Produ
 
 export async function getFeaturedProducts(): Promise<Product[]> {
   const products = await readPublishedProducts();
-  return products.filter(
-    (p) =>
-      p.badge === "bestseller" ||
-      p.badge === "new" ||
-      p.badge === "sale"
-  );
+  return products
+    .filter(
+      (p) =>
+        p.badge === "bestseller" ||
+        p.badge === "new" ||
+        p.badge === "sale"
+    )
+    .sort((a, b) => {
+      const ta = new Date(a.createdAt || a.updatedAt || 0).getTime();
+      const tb = new Date(b.createdAt || b.updatedAt || 0).getTime();
+      if (tb !== ta) return tb - ta;
+      // id genelde Date.now() — yedek sıralama
+      const na = Number(a.id);
+      const nb = Number(b.id);
+      if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) {
+        return nb - na;
+      }
+      return String(b.id).localeCompare(String(a.id));
+    });
 }
 
 export async function getPromoProducts(): Promise<Product[]> {
