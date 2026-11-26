@@ -1,12 +1,13 @@
 export type Lang = "tr" | "sq" | "en";
 
 const memoryCache = new Map<string, string>();
+const TRANSLATE_TIMEOUT_MS = 8_000;
 
 function cacheKey(text: string, from: Lang, to: Lang) {
   return `${from}|${to}|${text}`;
 }
 
-/** Metni sunucu API üzerinden çevirir; başarısız olursa orijinali döner. */
+/** Metni sunucu API üzerinden çevirir; zaman aşımı / hata olursa orijinali döner. */
 export async function translateText(
   text: string,
   from: Lang,
@@ -24,6 +25,7 @@ export async function translateText(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: trimmed, from, to }),
+      signal: AbortSignal.timeout(TRANSLATE_TIMEOUT_MS),
     });
 
     if (res.ok) {
@@ -34,7 +36,7 @@ export async function translateText(
       return translated;
     }
   } catch {
-    /* ignore */
+    /* timeout / network — kaydı engelleme */
   }
 
   return text;

@@ -17,7 +17,7 @@ async function translateViaGoogle(
     `https://translate.googleapis.com/translate_a/single` +
     `?client=gtx&sl=${from}&tl=${to}&dt=t&q=${encodeURIComponent(text)}`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(6_000) });
   if (!res.ok) return null;
 
   const data = await res.json();
@@ -42,7 +42,7 @@ async function translateViaMyMemory(
     `?q=${encodeURIComponent(text.slice(0, 450))}` +
     `&langpair=${from}|${to}`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(6_000) });
   if (!res.ok) return null;
 
   const data = await res.json();

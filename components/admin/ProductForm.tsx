@@ -283,113 +283,121 @@ export default function ProductForm({
     setSaving(true);
     setError("");
 
-    const nameSq = form.nameSq.trim();
-    if (!nameSq) {
-      setError(t.admin.nameSqRequired);
-      setSaving(false);
-      return;
-    }
-
-    const isSaleBadge = form.badge === "sale";
-    const listPrice = parseDecimal(form.price);
-    const discount = Number(form.discountPercent) || 0;
-
-    if (!Number.isFinite(listPrice) || listPrice < 0) {
-      setError(t.admin.invalidPrice);
-      setSaving(false);
-      return;
-    }
-
-    let price = listPrice;
-    let originalPrice: number | undefined;
-    let discountPercent: number | undefined;
-
-    if (isSaleBadge) {
-      if (discount <= 0 || discount >= 100) {
-        setError(t.admin.invalidDiscount);
-        setSaving(false);
-        return;
-      }
-      originalPrice = listPrice;
-      price = calcSalePrice(listPrice, discount);
-      discountPercent = discount;
-      if (price >= originalPrice) {
-        setError(t.admin.salePriceMustBeLower);
-        setSaving(false);
-        return;
-      }
-    }
-
-    let nameEn = form.nameEn.trim();
-    let descriptionEn = form.descriptionEn.trim();
-    let name = form.name.trim();
-    let description = form.description.trim();
-    const descriptionSq = form.descriptionSq.trim();
-
-    // İngilizce boşsa Arnavutçadan öner (kaydetmeden önce; admin sonra düzeltebilir)
     try {
-      if (!nameEn && nameSq) {
-        nameEn = await translateText(nameSq, "sq", "en");
+      const nameSq = form.nameSq.trim();
+      if (!nameSq) {
+        setError(t.admin.nameSqRequired);
+        return;
       }
-      if (!descriptionEn && descriptionSq) {
-        const translated = await translateText(descriptionSq, "sq", "en");
-        descriptionEn = applyNameToDescription(
-          translated,
-          { name, nameSq, nameEn },
-          "en"
+
+      const isSaleBadge = form.badge === "sale";
+      const listPrice = parseDecimal(form.price);
+      const discount = Number(form.discountPercent) || 0;
+
+      if (!Number.isFinite(listPrice) || listPrice < 0) {
+        setError(t.admin.invalidPrice);
+        return;
+      }
+
+      let price = listPrice;
+      let originalPrice: number | undefined;
+      let discountPercent: number | undefined;
+
+      if (isSaleBadge) {
+        if (discount <= 0 || discount >= 100) {
+          setError(t.admin.invalidDiscount);
+          return;
+        }
+        originalPrice = listPrice;
+        price = calcSalePrice(listPrice, discount);
+        discountPercent = discount;
+        if (price >= originalPrice) {
+          setError(t.admin.salePriceMustBeLower);
+          return;
+        }
+      }
+
+      let nameEn = form.nameEn.trim();
+      let descriptionEn = form.descriptionEn.trim();
+      let name = form.name.trim();
+      let description = form.description.trim();
+      const descriptionSq = form.descriptionSq.trim();
+
+      // Çeviri takılırsa kaydı engelleme (kısa timeout)
+      try {
+        if (!nameEn && nameSq) {
+          nameEn = await translateText(nameSq, "sq", "en");
+        }
+        if (!descriptionEn && descriptionSq) {
+          const translated = await translateText(descriptionSq, "sq", "en");
+          descriptionEn = applyNameToDescription(
+            translated,
+            { name, nameSq, nameEn },
+            "en"
+          );
+        }
+        if (!name) {
+          name = nameEn || nameSq;
+        }
+        if (!description && descriptionSq) {
+          description = await translateText(descriptionSq, "sq", "tr");
+        }
+      } catch {
+        if (!name) name = nameSq;
+      }
+
+      if (!name) name = nameSq;
+
+      const payload = {
+        name,
+        nameSq,
+        nameEn,
+        slug: form.slug || slugify(nameSq),
+        sku: form.sku,
+        description,
+        descriptionSq,
+        descriptionEn,
+        price,
+        originalPrice: isSaleBadge ? originalPrice : undefined,
+        discountPercent: isSaleBadge ? discountPercent : undefined,
+        categorySlug: form.categorySlug,
+        images: form.images,
+        image: form.images[0] || "",
+        badge: form.badge || undefined,
+        inStock: form.inStock,
+        stockQuantity: form.stockQuantity
+          ? Number(form.stockQuantity)
+          : undefined,
+        published: form.published,
+      };
+
+      const url =
+        mode === "create"
+          ? "/api/admin/products"
+          : `/api/admin/products/${product!.id}`;
+      const method = mode === "create" ? "POST" : "PUT";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (res.ok) {
+        router.push("/admin/products");
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(
+          typeof data.error === "string" ? data.error : t.admin.saveFailed
         );
       }
-      if (!name) {
-        name = nameEn || nameSq;
-      }
-      if (!description && descriptionSq) {
-        description = await translateText(descriptionSq, "sq", "tr");
-      }
     } catch {
-      if (!name) name = nameSq;
+      setError(t.admin.saveFailed);
+    } finally {
+      setSaving(false);
     }
-
-    const payload = {
-      name,
-      nameSq,
-      nameEn,
-      slug: form.slug || slugify(nameSq),
-      sku: form.sku,
-      description,
-      descriptionSq,
-      descriptionEn,
-      price,
-      originalPrice: isSaleBadge ? originalPrice : undefined,
-      discountPercent: isSaleBadge ? discountPercent : undefined,
-      categorySlug: form.categorySlug,
-      images: form.images,
-      image: form.images[0] || "",
-      badge: form.badge || undefined,
-      inStock: form.inStock,
-      stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : undefined,
-      published: form.published,
-    };
-
-    const url =
-      mode === "create"
-        ? "/api/admin/products"
-        : `/api/admin/products/${product!.id}`;
-    const method = mode === "create" ? "POST" : "PUT";
-
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (res.ok) {
-      router.push("/admin/products");
-      router.refresh();
-    } else {
-      const data = await res.json();
-      setError(data.error || t.admin.saveFailed);
-    }
-    setSaving(false);
   };
 
   return (

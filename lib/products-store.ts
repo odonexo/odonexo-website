@@ -3,48 +3,149 @@ import path from "path";
 import type { Product, ProductInput } from "@/lib/types/product";
 import { seedProducts } from "@/lib/data/products-seed";
 import { normalizeProduct } from "@/lib/product-helpers";
+import { getReadableDataDir, getWritableDataDir } from "@/lib/data-paths";
+import {
+  isBlobJsonEnabled,
+  readJsonFromBlob,
+  writeJsonToBlob,
+} from "@/lib/blob-json";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const PRODUCTS_FILE = path.join(DATA_DIR, "products.json");
+const BLOB_PATH = "odonexo/products.json";
 
-async function ensureDataFile(): Promise<Product[]> {
+function productsPath(dir: string) {
+  return path.join(dir, "products.json");
+}
+
+const globalStore = globalThis as typeof globalThis & {
+  __odonexoProductsCache?: Product[];
+};
+
+function mergeProductLists(
+  ...lists: (Product[] | null | undefined)[]
+): Product[] {
+  const map = new Map<string, Product>();
+
+  for (const list of lists) {
+    if (!list) continue;
+    for (const raw of list) {
+      const product = normalizeProduct(raw);
+      if (!product.id) continue;
+      const existing = map.get(product.id);
+      if (!existing) {
+        map.set(product.id, product);
+        continue;
+      }
+      const a = new Date(
+        existing.updatedAt || existing.createdAt || 0
+      ).getTime();
+      const b = new Date(
+        product.updatedAt || product.createdAt || 0
+      ).getTime();
+      if (b >= a) map.set(product.id, product);
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+async function readProductsFromFile(file: string): Promise<Product[] | null> {
   try {
-    await fs.access(PRODUCTS_FILE);
-    const raw = await fs.readFile(PRODUCTS_FILE, "utf-8");
-    return (JSON.parse(raw) as Product[]).map(normalizeProduct);
+    const raw = await fs.readFile(file, "utf-8");
+    const parsed = JSON.parse(raw) as Product[];
+    if (!Array.isArray(parsed)) return null;
+    return parsed.map(normalizeProduct);
   } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(PRODUCTS_FILE, JSON.stringify(seedProducts, null, 2), "utf-8");
-    return seedProducts.map(normalizeProduct);
+    return null;
   }
 }
 
+async function readAllProductsRaw(): Promise<Product[]> {
+  const fromBlob = isBlobJsonEnabled()
+    ? await readJsonFromBlob<Product[]>(BLOB_PATH)
+    : null;
+  const fromWritable = await readProductsFromFile(
+    productsPath(getWritableDataDir())
+  );
+  const fromRepo = await readProductsFromFile(
+    productsPath(getReadableDataDir())
+  );
+  const fromMemory = globalStore.__odonexoProductsCache || null;
+
+  let merged = mergeProductLists(
+    fromRepo,
+    fromWritable,
+    fromMemory,
+    fromBlob ? fromBlob.map(normalizeProduct) : null
+  );
+
+  // İlk kurulum: hiç veri yoksa seed ürünleri yükle
+  if (merged.length === 0) {
+    merged = seedProducts.map(normalizeProduct);
+  }
+
+  globalStore.__odonexoProductsCache = merged;
+  return merged;
+}
+
 async function writeProducts(products: Product[]): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(PRODUCTS_FILE, JSON.stringify(products, null, 2), "utf-8");
+  const normalized = products.map(normalizeProduct);
+  globalStore.__odonexoProductsCache = normalized;
+
+  if (isBlobJsonEnabled()) {
+    const ok = await writeJsonToBlob(BLOB_PATH, normalized);
+    if (!ok) {
+      console.error("Ürünler Blob'a yazılamadı — yerel yedeğe devam");
+    }
+  }
+
+  const dir = getWritableDataDir();
+  const file = productsPath(dir);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(file, JSON.stringify(normalized, null, 2), "utf-8");
+
+  if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    try {
+      const repoDir = getReadableDataDir();
+      await fs.mkdir(repoDir, { recursive: true });
+      await fs.writeFile(
+        productsPath(repoDir),
+        JSON.stringify(normalized, null, 2),
+        "utf-8"
+      );
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export async function readAllProducts(): Promise<Product[]> {
-  return ensureDataFile();
+  const products = await readAllProductsRaw();
+  return products.sort(
+    (a, b) =>
+      new Date(b.updatedAt || b.createdAt || 0).getTime() -
+      new Date(a.updatedAt || a.createdAt || 0).getTime()
+  );
 }
 
 export async function readPublishedProducts(): Promise<Product[]> {
-  const products = await ensureDataFile();
+  const products = await readAllProductsRaw();
   return products.filter((p) => p.published);
 }
 
 export async function getProductById(id: string): Promise<Product | undefined> {
-  const products = await ensureDataFile();
+  const products = await readAllProductsRaw();
   return products.find((p) => p.id === id);
 }
 
-export async function getProductBySlug(slug: string): Promise<Product | undefined> {
+export async function getProductBySlug(
+  slug: string
+): Promise<Product | undefined> {
   const products = await readPublishedProducts();
   return products.find((p) => p.slug === slug);
 }
 
 export async function createProduct(input: ProductInput): Promise<Product> {
-  const products = await ensureDataFile();
+  const products = await readAllProductsRaw();
   const now = new Date().toISOString();
   const product = normalizeProduct({
     ...input,
@@ -70,7 +171,7 @@ export async function updateProduct(
   id: string,
   input: ProductUpdateInput
 ): Promise<Product | null> {
-  const products = await ensureDataFile();
+  const products = await readAllProductsRaw();
   const index = products.findIndex((p) => p.id === id);
   if (index === -1) return null;
 
@@ -98,7 +199,7 @@ export async function updateProduct(
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {
-  const products = await ensureDataFile();
+  const products = await readAllProductsRaw();
   const filtered = products.filter((p) => p.id !== id);
   if (filtered.length === products.length) return false;
   await writeProducts(filtered);

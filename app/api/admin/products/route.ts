@@ -59,6 +59,17 @@ export async function POST(request: Request) {
     sku: body.sku?.trim() || `ODN-${Date.now().toString().slice(-6)}`,
   };
 
-  const product = await createProduct(input);
-  return NextResponse.json(product, { status: 201 });
+  try {
+    const product = await createProduct(input);
+    return NextResponse.json(product, { status: 201 });
+  } catch (err) {
+    console.error("Ürün oluşturma hatası:", err);
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error ? err.message : "Ürün kaydedilemedi",
+      },
+      { status: 500 }
+    );
+  }
 }

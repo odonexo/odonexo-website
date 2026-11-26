@@ -111,63 +111,72 @@ export default function CategoryForm({ category, mode }: CategoryFormProps) {
     setSaving(true);
     setError("");
 
-    const nameSq = form.nameSq.trim();
-    if (!nameSq) {
-      setError(t.admin.categoryNameSqRequired);
-      setSaving(false);
-      return;
-    }
-
-    let nameEn = form.nameEn.trim();
-    let descriptionEn = form.descriptionEn.trim();
-    let name = form.name.trim();
-    let description = form.description.trim();
-    const descriptionSq = form.descriptionSq.trim();
-
     try {
-      if (!nameEn && nameSq) nameEn = await translateText(nameSq, "sq", "en");
-      if (!descriptionEn && descriptionSq) {
-        descriptionEn = await translateText(descriptionSq, "sq", "en");
+      const nameSq = form.nameSq.trim();
+      if (!nameSq) {
+        setError(t.admin.categoryNameSqRequired);
+        return;
       }
-      if (!name) name = nameEn || nameSq;
-      if (!description && descriptionSq) {
-        description = await translateText(descriptionSq, "sq", "tr");
+
+      let nameEn = form.nameEn.trim();
+      let descriptionEn = form.descriptionEn.trim();
+      let name = form.name.trim();
+      let description = form.description.trim();
+      const descriptionSq = form.descriptionSq.trim();
+
+      try {
+        if (!nameEn && nameSq) nameEn = await translateText(nameSq, "sq", "en");
+        if (!descriptionEn && descriptionSq) {
+          descriptionEn = await translateText(descriptionSq, "sq", "en");
+        }
+        if (!name) name = nameEn || nameSq;
+        if (!description && descriptionSq) {
+          description = await translateText(descriptionSq, "sq", "tr");
+        }
+      } catch {
+        if (!name) name = nameSq;
+      }
+
+      if (!name) name = nameSq;
+
+      const payload = {
+        ...form,
+        name,
+        nameSq,
+        nameEn,
+        description,
+        descriptionSq,
+        descriptionEn,
+        slug: form.slug || slugify(nameSq),
+      };
+
+      const url =
+        mode === "create"
+          ? "/api/admin/categories"
+          : `/api/admin/categories/${category!.id}`;
+      const method = mode === "create" ? "POST" : "PUT";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (res.ok) {
+        router.push("/admin/categories");
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(
+          typeof data.error === "string" ? data.error : t.admin.saveFailed
+        );
       }
     } catch {
-      if (!name) name = nameSq;
+      setError(t.admin.saveFailed);
+    } finally {
+      setSaving(false);
     }
-
-    const payload = {
-      ...form,
-      name,
-      nameSq,
-      nameEn,
-      description,
-      descriptionSq,
-      descriptionEn,
-      slug: form.slug || slugify(nameSq),
-    };
-
-    const url =
-      mode === "create"
-        ? "/api/admin/categories"
-        : `/api/admin/categories/${category!.id}`;
-    const method = mode === "create" ? "POST" : "PUT";
-
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (res.ok) {
-      router.push("/admin/categories");
-      router.refresh();
-    } else {
-      const data = await res.json();
-      setError(data.error || t.admin.saveFailed);
-    }
-    setSaving(false);
   };
 
   return (
